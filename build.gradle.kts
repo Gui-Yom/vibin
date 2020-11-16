@@ -1,6 +1,7 @@
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
     kotlin("jvm") version "1.4.10"
+    kotlin("plugin.serialization") version "1.4.10"
     // Apply the application plugin to add support for building a CLI application in Java.
     application
     id("com.github.johnrengelman.shadow") version "6.1.0"
@@ -21,6 +22,7 @@ dependencies {
 
     implementation(platform(kotlin("bom", kotlinVersion)))
     implementation(kotlin("stdlib-jdk8"))
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.0.1")
     implementation("uk.co.caprica:vlcj:$vlcjVersion")
 }
 
