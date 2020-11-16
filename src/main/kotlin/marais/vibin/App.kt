@@ -12,6 +12,7 @@ import java.awt.*
 import java.awt.event.MouseEvent
 import java.awt.event.MouseWheelEvent
 import java.io.File
+import java.net.URLConnection
 import java.util.concurrent.locks.ReentrantLock
 import javax.swing.event.MouseInputAdapter
 import kotlin.concurrent.withLock
@@ -20,17 +21,31 @@ import kotlin.system.exitProcess
 fun main(args: Array<String>) {
 
     val config: Config = Json.decodeFromString(File("config.vibin.json").readText())
-    if (config.files.isEmpty()) {
-        println("No registered media.")
+
+    val mediaDir = File(config.player_settings.mediaDir)
+    if (!mediaDir.exists() || !mediaDir.isDirectory || mediaDir.list() == null) {
+        println("Wrong media directory ${config.player_settings.mediaDir}.")
         exitProcess(-1)
     }
+
+    var mediaFiles = mediaDir.list()!!.asList()
+    mediaFiles = mediaFiles.filter {
+        val mimeType: String? = URLConnection.guessContentTypeFromName(it)
+        mimeType != null && mimeType.startsWith("video")
+    }
+    if (mediaFiles.isEmpty()) {
+        println("No playable video found in ${config.player_settings.mediaDir}")
+        exitProcess(-1)
+    }
+    println("found media : $mediaFiles")
 
     val frame = Frame("Vibin")
     frame.isResizable = false
     frame.isUndecorated = true
-    frame.isAlwaysOnTop = true
+    frame.isAlwaysOnTop = config.player_settings.alwaysOnTop
     frame.size = Dimension(128, 128)
     frame.layout = BorderLayout()
+    frame.opacity = config.player_settings.opacity
 
     val factory = MediaPlayerFactory()
     val playerComponent = EmbeddedMediaPlayerComponent(factory, null, UnsupportedFullScreenStrategy(), InputEvents.DISABLE_NATIVE, null)
@@ -44,11 +59,13 @@ fun main(args: Array<String>) {
 
     fun playNext() {
         val newPtr = ++mediaPointer
-        val media = if (newPtr < config.files.size) config.files[newPtr] else {
+        val media = if (newPtr < mediaFiles.size) mediaFiles[newPtr] else {
             mediaPointer = 0
-            config.files[0]
+            mediaFiles[0]
         }
-        player.media().start(media.file, "--volume ${media.defaultVolume}")
+
+        val options = config.getMediaOptions(media) ?: MediaOptionsEntry("")
+        player.media().start(config.player_settings.mediaDir + media, "--volume ${options.defaultVolume}")
     }
 
     val listener = object : MouseInputAdapter() {
@@ -56,7 +73,9 @@ fun main(args: Array<String>) {
         var pressed: MouseEvent? = null
 
         override fun mouseClicked(e: MouseEvent) {
-            if (e.button == MouseEvent.BUTTON2) {
+            if (e.button == MouseEvent.BUTTON1 && e.isControlDown) {
+                if (player.status().isPlaying) player.controls().pause() else player.controls().play()
+            } else if (e.button == MouseEvent.BUTTON2) {
                 lock.withLock { lockCondition.signalAll() }
             } else if (e.button == MouseEvent.BUTTON3) {
                 player.controls().stop()
@@ -77,8 +96,13 @@ fun main(args: Array<String>) {
         }
 
         override fun mouseWheelMoved(e: MouseWheelEvent) {
-            player.submit {
-                player.audio().setVolume(player.audio().volume() - e.wheelRotation * 5)
+            if (e.isControlDown) {
+                frame.opacity = (frame.opacity - e.wheelRotation * 0.1f).coerceIn(config.player_settings.minOpacity, 1f)
+            } else {
+                player.submit {
+                    player.audio().setVolume(player.audio().volume() - e.wheelRotation * 5)
+                }
+                println(player.audio().volume())
             }
         }
     }

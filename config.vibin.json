@@ -1,13 +1,17 @@
 {
-    "files": [
-        {
-            "file": "polish_cow.mp4"
-        },
-        {
-            "file": "sax_gandalf.mp4"
-        },
-        {
-            "file": "vibin.mp4"
-        }
-    ]
+  "player_settings" : {
+    "opacity" : 0.5,
+    "minOpacity" : 0.9,
+    "mediaDir" : "./media/"
+  },
+  "mediaOptions": [
+    {
+      "file": "polish_cow.mp4",
+      "defaultVolume" : 200
+    },
+    {
+      "file": "sax_gandalf.mp4",
+      "defaultVolume" : 50
+    }
+  ]
 }
