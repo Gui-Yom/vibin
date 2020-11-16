@@ -32,7 +32,7 @@ fun main(args: Array<String>) {
     frame.size = Dimension(128, 128)
     frame.layout = BorderLayout()
 
-    val factory = MediaPlayerFactory("--loop")
+    val factory = MediaPlayerFactory()
     val playerComponent = EmbeddedMediaPlayerComponent(factory, null, UnsupportedFullScreenStrategy(), InputEvents.DISABLE_NATIVE, null)
     val player = playerComponent.mediaPlayer()
     player.video().setScale(0.5f)
