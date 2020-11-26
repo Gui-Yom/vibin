@@ -16,7 +16,7 @@ pub struct RustAVSource {
     audio_info: AudioInfo,
     current_data: IntoIter<i16>,
     ptr: usize,
-    size: usize
+    size: usize,
 }
 
 impl RustAVSource {
@@ -30,9 +30,14 @@ impl RustAVSource {
             return Err("Can't find an opus stream".into());
         }
         let audio_info = audio_info.unwrap();
+        let channels = audio_info.map.as_ref().unwrap().len() as u16;
         let decoder = Decoder::new(
             audiopus::SampleRate::try_from(audio_info.rate as i32).unwrap(),
-            audiopus::Channels::Stereo,
+            if channels == 1 {
+                audiopus::Channels::Mono
+            } else {
+                audiopus::Channels::Stereo
+            },
         )
         .unwrap();
         Ok(RustAVSource {
@@ -41,7 +46,7 @@ impl RustAVSource {
             audio_info,
             current_data: Vec::with_capacity(0).into_iter(),
             ptr: 0,
-            size: 0
+            size: 0,
         })
     }
 
@@ -72,6 +77,7 @@ impl RustAVSource {
         match self.demuxer.read_event() {
             Ok(event) => match event {
                 Event::NewPacket(pkt) => Ok(pkt),
+                Event::Continue => self.next_data_packet(),
                 Event::Eof => Err("EOF".into()),
                 _ => Err("not a packet".into()),
             },
@@ -98,7 +104,7 @@ impl rodio::Source for RustAVSource {
     }
 
     fn channels(&self) -> u16 {
-        2
+        self.audio_info.map.as_ref().unwrap().len() as u16
     }
 
     fn sample_rate(&self) -> u32 {
@@ -115,9 +121,14 @@ impl Iterator for RustAVSource {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        println!("Asking for next item ptr: {} size: {} datalen: {}", self.ptr, self.size, self.current_data.len());
+        println!(
+            "Asking for next item ptr: {} size: {} datalen: {}",
+            self.ptr,
+            self.size,
+            self.current_data.len()
+        );
         if self.ptr >= self.size || self.current_data.len() == 0 {
-            let result =  self.next_samples();
+            let result = self.next_samples();
             if result.is_err() {
                 println!("{}", result.err().unwrap());
                 return None;
