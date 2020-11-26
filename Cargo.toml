@@ -11,9 +11,7 @@ lto = "fat"
 codegen-units = 1
 
 [dependencies]
-matroska = { git = "https://github.com/rust-av/matroska" }
-av-data = "~0.2.2"
-av-format = "~0.2.1"
-audiopus = "~0.2.0"
-rodio = "~0.13.0"
-image = "~0.23.12"
+rodio = { version = "~0.13.0", features = ["vorbis"] }
+image = { version = "~0.23.12", features = ["png", "gif"] }
+ron = "~0.6.2"
+winit = "~0.23.0"
