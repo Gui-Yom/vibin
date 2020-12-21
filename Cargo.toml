@@ -11,7 +11,12 @@ lto = "fat"
 codegen-units = 1
 
 [dependencies]
-rodio = { version = "~0.13.0", features = ["vorbis"] }
-image = { version = "~0.23.12", features = ["png", "gif"] }
-ron = "~0.6.2"
-winit = "~0.23.0"
+rodio = { version = "~0.13", features = ["vorbis"] }
+image = { version = "~0.23", features = ["png", "gif"] }
+ron = "~0.6"
+#winit = "~0.23"
+conrod_core = "~0.71"
+#conrod_winit = "~0.71"
+conrod_piston = "~0.71"
+piston_window = { version = "~0.116" }
+#pistoncore-winit_window = "~0.12"
