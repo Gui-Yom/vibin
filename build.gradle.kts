@@ -1,10 +1,11 @@
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
-    kotlin("jvm") version "1.4.10"
-    kotlin("plugin.serialization") version "1.4.10"
+    kotlin("jvm") version "1.4.21"
+    kotlin("plugin.serialization") version "1.4.21"
     // Apply the application plugin to add support for building a CLI application in Java.
     application
     id("com.github.johnrengelman.shadow") version "6.1.0"
+    id("org.mikeneck.graalvm-native-image") version "1.0.0"
 }
 
 group = "marais"
@@ -53,4 +54,23 @@ tasks {
         mergeServiceFiles()
         //minimize()
     }
+}
+
+nativeImage {
+    graalVmHome = System.getenv("GRAALVM_HOME")
+    mainClass = application.mainClass.get()
+    executableName = rootProject.name
+    outputDirectory = file("$buildDir/bin")
+    arguments(
+        "--no-fallback",
+        "--enable-all-security-services",
+        options.traceClassInitialization("com.example.MyDataProvider,com.example.MyDataConsumer").get(),
+        "--initialize-at-run-time=com.example.runtime",
+        "--report-unsupported-elements-at-runtime"
+    )
+}
+
+generateNativeImageConfig {
+    enabled = true
+    byRunningApplicationWithoutArguments()
 }
