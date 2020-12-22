@@ -18,7 +18,7 @@ import javax.swing.event.MouseInputAdapter
 import kotlin.concurrent.withLock
 import kotlin.system.exitProcess
 
-fun main(args: Array<String>) {
+fun main() {
 
     val config: Config = Json.decodeFromString(File("config.vibin.json").readText())
 
@@ -28,16 +28,13 @@ fun main(args: Array<String>) {
         exitProcess(-1)
     }
 
-    var mediaFiles = mediaDir.list()!!.asList()
-    mediaFiles = mediaFiles.filter {
-        val mimeType: String? = URLConnection.guessContentTypeFromName(it)
-        mimeType != null && mimeType.startsWith("video")
+    val mediaFiles = mediaDir.listFiles { file, name ->
+        URLConnection.guessContentTypeFromName(name).startsWith("video")
     }
-    if (mediaFiles.isEmpty()) {
+    if (mediaFiles == null || mediaFiles.isEmpty()) {
         println("No playable video found in ${config.player_settings.mediaDir}")
         exitProcess(-1)
     }
-    println("found media : $mediaFiles")
 
     val frame = Frame("Vibin")
     frame.isResizable = false
@@ -48,7 +45,8 @@ fun main(args: Array<String>) {
     frame.opacity = config.player_settings.opacity
 
     val factory = MediaPlayerFactory()
-    val playerComponent = EmbeddedMediaPlayerComponent(factory, null, UnsupportedFullScreenStrategy(), InputEvents.DISABLE_NATIVE, null)
+    val playerComponent =
+        EmbeddedMediaPlayerComponent(factory, null, UnsupportedFullScreenStrategy(), InputEvents.DISABLE_NATIVE, null)
     val player = playerComponent.mediaPlayer()
     player.video().setScale(0.5f)
 
@@ -64,7 +62,7 @@ fun main(args: Array<String>) {
             mediaFiles[0]
         }
 
-        val options = config.getMediaOptions(media) ?: MediaOptionsEntry("")
+        val options = config.getMediaOptions(media.name) ?: MediaOptionsEntry("")
         player.media().start(config.player_settings.mediaDir + media, "--volume ${options.defaultVolume}")
     }
 
