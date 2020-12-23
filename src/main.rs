@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use libmpv::{events::Event, FileState, Format, Mpv};
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use winit::{
@@ -20,13 +22,18 @@ fn main() -> Result<(), libmpv::Error> {
 
     // Create a mpv instance, tell it to paint video in our window.
     let mpv = Mpv::with_initializer(|init| {
+        init.set_property("vo", "gpu")?;
+        init.set_property("gpu-context", "d3d11")?;
+        init.set_property("hwdec", "auto-safe")?;
         init.set_property("wid", hwnd as i64)?;
+        init.set_property("volume", 100)?;
         Ok(())
     })?;
 
     let mut mpv_event_ctx = mpv.create_event_context();
     mpv_event_ctx.disable_deprecated_events()?;
     mpv_event_ctx.observe_property("volume", Format::Int64, 0)?;
+    mpv_event_ctx.observe_property("hwdec", Format::String, 0)?;
 
     mpv.playlist_load_files(&[(
         // Warning, click at you own risk
@@ -39,11 +46,12 @@ fn main() -> Result<(), libmpv::Error> {
     //let file = File::open("C:/Users/Guillaume/Desktop/memelord_music_pack/widewalk.ogg").unwrap();
 
     let mut modifiers_state: ModifiersState = ModifiersState::default();
+    let mut volume = 80;
 
     // The event loop
     event_loop.run_return(|e, _target, control_flow| {
         // Wait for OS events
-        *control_flow = ControlFlow::Poll;
+        *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(100));
 
         match e {
             winit::event::Event::WindowEvent { window_id, event } => match event {
@@ -56,10 +64,8 @@ fn main() -> Result<(), libmpv::Error> {
                     phase,
                     ..
                 } => {
-                    //mpv.set_property("volume", 0.0);
-                    /*
-                    .set_volume(audio_controller.sink.volume() + 0.05 * vertical);
-                    */
+                    volume = volume + 5 * vertical as i64;
+                    mpv.set_property("volume", volume).unwrap();
                 }
                 WindowEvent::MouseInput {
                     device_id, button, ..
@@ -86,7 +92,15 @@ fn main() -> Result<(), libmpv::Error> {
                 println!("Stopping ! reason : {}", r);
             }
             Some(Ok(Event::PropertyChange { name, change, .. })) => {
-                println!("Property change : {}", name);
+                let display = match change {
+                    libmpv::events::PropertyData::Str(val) => val.to_string(),
+                    libmpv::events::PropertyData::OsdStr(val) => val.to_string(),
+                    libmpv::events::PropertyData::Flag(val) => val.to_string(),
+                    libmpv::events::PropertyData::Int64(val) => val.to_string(),
+                    libmpv::events::PropertyData::Double(val) => val.to_string(),
+                    libmpv::events::PropertyData::Node(val) => format!("{:?}", val),
+                };
+                println!("Property change : {} -> {}", name, display);
             }
             _ => {}
         }
