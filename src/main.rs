@@ -1,71 +1,49 @@
-use std::{fs::File, io::BufReader};
-
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
+use libmpv::{events::Event, FileState, Format, Mpv};
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use winit::{
-    dpi::LogicalSize, event::ModifiersState, event::MouseScrollDelta, event::WindowEvent,
-    event_loop::ControlFlow, event_loop::EventLoop, platform::windows::WindowBuilderExtWindows,
-    window::WindowBuilder,
+    dpi::LogicalSize,
+    event::{ModifiersState, MouseScrollDelta, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    platform::{run_return::EventLoopExtRunReturn, windows::WindowBuilderExtWindows},
+    window::{Window, WindowBuilder},
 };
 
-mod gui;
+fn main() -> Result<(), libmpv::Error> {
+    // Create the window
+    let (mut event_loop, window) = init_window();
 
-struct AudioController {
-    stream: OutputStream,
-    stream_handle: OutputStreamHandle,
-    sink: Sink,
-}
+    // Retrieve its id
+    let hwnd = match window.raw_window_handle() {
+        RawWindowHandle::Windows(handle) => handle.hwnd,
+        _ => panic!("Unsupported platform !"),
+    };
 
-impl AudioController {
-    fn new() -> Self {
-        let (stream, stream_handle) = OutputStream::try_default().unwrap();
-        let sink = Sink::try_new(&stream_handle).unwrap();
+    // Create a mpv instance, tell it to paint video in our window.
+    let mpv = Mpv::with_initializer(|init| {
+        init.set_property("wid", hwnd as i64)?;
+        Ok(())
+    })?;
 
-        AudioController {
-            stream,
-            stream_handle,
-            sink,
-        }
-    }
-}
+    let mut mpv_event_ctx = mpv.create_event_context();
+    mpv_event_ctx.disable_deprecated_events()?;
+    mpv_event_ctx.observe_property("volume", Format::Int64, 0)?;
 
-fn main() {
+    mpv.playlist_load_files(&[(
+        // Warning, click at you own risk
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        FileState::AppendPlay,
+        None,
+    )])?;
+
     // Open the matroska file
-    let file = File::open("C:/Users/Guillaume/Desktop/memelord_music_pack/widewalk.ogg").unwrap();
-
-    let audio_controller = AudioController::new();
-
-    // Add a dummy source of the sake of the example.
-    let source = Decoder::new_vorbis(BufReader::new(file)).unwrap();
-    audio_controller.sink.append(source);
-
-    init_window(audio_controller);
-
-    /*
-    for _ in 0..5 {
-        sleep(Duration::from_millis(1000))
-    }
-    */
-}
-
-fn init_window(audio_controller: AudioController) {
-    let event_loop = EventLoop::new();
-    let window = WindowBuilder::new()
-        .with_title("Vibin")
-        .with_resizable(false)
-        .with_decorations(true)
-        .with_visible(true)
-        .with_always_on_top(true)
-        .with_inner_size(LogicalSize::new(128, 128))
-        .with_drag_and_drop(false)
-        .with_transparent(true)
-        .build(&event_loop)
-        .unwrap();
-        
+    //let file = File::open("C:/Users/Guillaume/Desktop/memelord_music_pack/widewalk.ogg").unwrap();
 
     let mut modifiers_state: ModifiersState = ModifiersState::default();
-    event_loop.run(move |e, target, control_flow| {
+
+    // The event loop
+    event_loop.run_return(|e, _target, control_flow| {
         // Wait for OS events
-        *control_flow = ControlFlow::Wait;
+        *control_flow = ControlFlow::Poll;
 
         match e {
             winit::event::Event::WindowEvent { window_id, event } => match event {
@@ -78,10 +56,19 @@ fn init_window(audio_controller: AudioController) {
                     phase,
                     ..
                 } => {
-                    audio_controller
-                        .sink
-                        .set_volume(audio_controller.sink.volume() + 0.05 * vertical);
+                    //mpv.set_property("volume", 0.0);
+                    /*
+                    .set_volume(audio_controller.sink.volume() + 0.05 * vertical);
+                    */
                 }
+                WindowEvent::MouseInput {
+                    device_id, button, ..
+                } => match button {
+                    winit::event::MouseButton::Middle => {
+                        *control_flow = ControlFlow::Exit;
+                    }
+                    _ => {}
+                },
                 WindowEvent::CloseRequested => {
                     *control_flow = ControlFlow::Exit;
                 }
@@ -89,5 +76,36 @@ fn init_window(audio_controller: AudioController) {
             },
             _ => {}
         }
+        if *control_flow == ControlFlow::Exit {
+            return;
+        }
+
+        let e = mpv_event_ctx.wait_event(0.0);
+        match e {
+            Some(Ok(Event::EndFile(r))) => {
+                println!("Stopping ! reason : {}", r);
+            }
+            Some(Ok(Event::PropertyChange { name, change, .. })) => {
+                println!("Property change : {}", name);
+            }
+            _ => {}
+        }
     });
+    Ok(())
+}
+
+fn init_window() -> (EventLoop<()>, Window) {
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new()
+        .with_title("Vibin")
+        .with_resizable(false)
+        .with_decorations(false)
+        .with_visible(true)
+        .with_always_on_top(true)
+        .with_inner_size(LogicalSize::new(128, 128))
+        .with_drag_and_drop(false)
+        .with_transparent(true)
+        .build(&event_loop)
+        .unwrap();
+    return (event_loop, window);
 }
