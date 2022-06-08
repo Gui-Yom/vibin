@@ -3,11 +3,13 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use eframe::epaint::Rgba;
 use egui::{ColorImage, Pos2, TextureHandle, Vec2, Visuals};
 use image::codecs::gif::GifDecoder;
 use image::AnimationDecoder;
+use kira::manager::backend::DefaultBackend;
+use kira::manager::AudioManagerSettings;
+use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 
 static GIF_DATA: &[u8] = include_bytes!("../cat.gif");
 
@@ -30,29 +32,13 @@ impl Vibin {
         let ctx_clone = cc.egui_ctx.clone();
         let curr_clone = current.clone();
         thread::spawn(move || {
-            let stream = if let Some(device) = cpal::default_host().default_output_device() {
-                let config = device.default_output_config().unwrap();
-                Some(
-                    device
-                        .build_output_stream::<i16, _, _>(
-                            &config.config(),
-                            |buf, _info| {
-                                for s in buf {
-                                    *s = 0;
-                                }
-                            },
-                            |err| {
-                                println!("{err}");
-                            },
-                        )
-                        .unwrap(),
-                )
-            } else {
-                None
-            }
-            .unwrap();
+            let mut manager =
+                kira::manager::AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
+                    .expect("Can't initialize audio context");
 
-            stream.play().unwrap();
+            let sound = StaticSoundData::from_file("test.mp3", StaticSoundSettings::default())
+                .expect("Can't load sound file");
+            manager.play(sound).expect("Can't play sound");
 
             loop {
                 thread::sleep(Duration::from_micros(delay as u64));
@@ -132,24 +118,22 @@ fn main() {
             ..Default::default()
         },
         Box::new(move |cc| {
-            Box::new(Vibin::new(
-                cc,
-                frames
-                    .iter()
-                    .enumerate()
-                    .map(|(i, f)| {
-                        let handle = cc.egui_ctx.load_texture(
-                            format!("gif_frame_{i}"),
-                            ColorImage::from_rgba_unmultiplied(
-                                [f.buffer().width() as _, f.buffer().height() as _],
-                                f.buffer(),
-                            ),
-                        );
-                        let (num, den) = f.delay().numer_denom_ms();
-                        (handle, (num as f32 * 1000.0 / den as f32).round() as u32)
-                    })
-                    .collect(),
-            ))
+            let images = frames
+                .iter()
+                .enumerate()
+                .map(|(i, f)| {
+                    let handle = cc.egui_ctx.load_texture(
+                        format!("gif_frame_{i}"),
+                        ColorImage::from_rgba_unmultiplied(
+                            [f.buffer().width() as _, f.buffer().height() as _],
+                            f.buffer(),
+                        ),
+                    );
+                    let (num, den) = f.delay().numer_denom_ms();
+                    (handle, (num as f32 * 1000.0 / den as f32).round() as u32)
+                })
+                .collect();
+            Box::new(Vibin::new(cc, images))
         }),
     );
 }
