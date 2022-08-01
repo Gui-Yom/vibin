@@ -11,6 +11,11 @@ egui = "0.18"
 image = { version = "0.24", default-features = false, features = ["gif"] }
 kira = { version = "0.6", default-features = false, features= ["cpal", "mp3", "ogg"] }
 
+[features]
+default = []
+# Bundle an audio file at compile time
+bundle-audio = []
+
 [profile.dev.package.gif]
 opt-level = 2
 [profile.dev.package.symphonia-bundle-mp3]

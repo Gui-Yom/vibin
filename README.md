@@ -1,13 +1,24 @@
 # Vibin
 
-For when your last 2 brain cells need to vibe together at 4am.
+For when your last 2 brain cells need to vibe together at 4am (blazingly fast).
 
 ![cat vibing](cat.gif)
 
-## Build
+---
 
-```
+## Build & Run
+
+```shell
 cargo build --release
+target/release/vibin <mp3 or ogg file>
+```
+
+## Build & Run (with bundled audio)
+
+```shell
+set VIBIN_BUNDLE=<mp3 or ogg file>
+cargo build --release --features bundle-audio
+target/release/vibin
 ```
 
 ## Controls

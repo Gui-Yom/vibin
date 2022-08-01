@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
+use std::{env, thread};
 
 use eframe::epaint::Rgba;
 use egui::{ColorImage, Pos2, TextureHandle, Vec2, Visuals};
@@ -36,8 +36,28 @@ impl Vibin {
                 kira::manager::AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
                     .expect("Can't initialize audio context");
 
-            let sound = StaticSoundData::from_file("test.mp3", StaticSoundSettings::default())
-                .expect("Can't load sound file");
+            #[cfg(feature = "bundle-audio")]
+            let sound = {
+                let data = include_bytes!(env!(
+                    "VIBIN_BUNDLE",
+                    "Feature 'bundle-audio' is set but the VIBIN_BUNDLE env var is not"
+                ));
+                StaticSoundData::from_cursor(
+                    std::io::Cursor::new(data),
+                    StaticSoundSettings::default(),
+                )
+                .expect("Can't decode bundled sound file")
+            };
+
+            #[cfg(not(feature = "bundle-audio"))]
+            let sound = {
+                StaticSoundData::from_file(
+                    env::args().skip(1).collect::<Vec<String>>().join(" "),
+                    StaticSoundSettings::default(),
+                )
+                .expect("Can't load sound file")
+            };
+
             manager.play(sound).expect("Can't play sound");
 
             loop {
