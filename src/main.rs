@@ -8,8 +8,10 @@ use egui::{ColorImage, Pos2, TextureHandle, Vec2, Visuals};
 use image::codecs::gif::GifDecoder;
 use image::AnimationDecoder;
 use kira::manager::backend::DefaultBackend;
-use kira::manager::AudioManagerSettings;
+use kira::manager::{AudioManager, AudioManagerSettings, MainPlaybackState};
 use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
+use kira::tween::{Easing, Tween};
+use kira::StartTime;
 
 static GIF_DATA: &[u8] = include_bytes!("../cat.gif");
 
@@ -17,6 +19,8 @@ pub struct Vibin {
     pos: Pos2,
     images: Vec<(TextureHandle, u32)>,
     current: Arc<AtomicUsize>,
+    audio: AudioManager,
+    volume: f64,
 }
 
 impl Vibin {
@@ -31,50 +35,48 @@ impl Vibin {
         let delay = images[0].1;
         let ctx_clone = cc.egui_ctx.clone();
         let curr_clone = current.clone();
-        thread::spawn(move || {
-            let mut manager =
-                kira::manager::AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
-                    .expect("Can't initialize audio context");
-
-            #[cfg(feature = "bundle-audio")]
-            let sound = {
-                let data = include_bytes!(env!(
-                    "VIBIN_BUNDLE",
-                    "Feature 'bundle-audio' is set but the VIBIN_BUNDLE env var is not"
-                ));
-                StaticSoundData::from_cursor(
-                    std::io::Cursor::new(data),
-                    StaticSoundSettings::default(),
-                )
-                .expect("Can't decode bundled sound file")
-            };
-
-            #[cfg(not(feature = "bundle-audio"))]
-            let sound = {
-                StaticSoundData::from_file(
-                    env::args().skip(1).collect::<Vec<String>>().join(" "),
-                    StaticSoundSettings::default(),
-                )
-                .expect("Can't load sound file")
-            };
-
-            manager.play(sound).expect("Can't play sound");
-
-            loop {
-                thread::sleep(Duration::from_micros(delay as u64));
-                curr_clone
-                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
-                        Some((c + 1) % size)
-                    })
-                    .unwrap();
-                ctx_clone.request_repaint();
-            }
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_micros(delay as u64));
+            curr_clone
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
+                    Some((c + 1) % size)
+                })
+                .unwrap();
+            ctx_clone.request_repaint();
         });
+
+        let mut manager = AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
+            .expect("Can't initialize audio context");
+
+        let settings = StaticSoundSettings::new().volume(0.8);
+
+        #[cfg(feature = "bundle-audio")]
+        let sound = {
+            let data = include_bytes!(env!(
+                "VIBIN_BUNDLE",
+                "Feature 'bundle-audio' is set but the VIBIN_BUNDLE env var is not"
+            ));
+            StaticSoundData::from_cursor(std::io::Cursor::new(data), settings)
+                .expect("Can't decode bundled sound file")
+        };
+
+        #[cfg(not(feature = "bundle-audio"))]
+        let sound = {
+            StaticSoundData::from_file(
+                env::args().skip(1).collect::<Vec<String>>().join(" "),
+                settings,
+            )
+            .expect("Can't load sound file")
+        };
+
+        manager.play(sound).expect("Can't play sound");
 
         Self {
             pos: Pos2::new(100.0, 100.0),
             images,
             current,
+            audio: manager,
+            volume: 1.0,
         }
     }
 }
@@ -95,6 +97,33 @@ impl eframe::App for Vibin {
                     }
                 }
             }
+
+            if input.pointer.secondary_down() && input.pointer.any_pressed() {
+                match self.audio.state() {
+                    MainPlaybackState::Paused | MainPlaybackState::Pausing => self
+                        .audio
+                        .resume(Tween {
+                            start_time: StartTime::Immediate,
+                            duration: Duration::from_millis(350),
+                            easing: Easing::InPowf(1.0),
+                        })
+                        .expect("Can't resume audio"),
+                    MainPlaybackState::Playing => self
+                        .audio
+                        .pause(Tween {
+                            start_time: StartTime::Immediate,
+                            duration: Duration::from_millis(350),
+                            easing: Easing::OutPowf(1.0),
+                        })
+                        .expect("Can't pause audio"),
+                }
+            }
+
+            self.volume = (self.volume + input.scroll_delta.y as f64 / 1000.0).clamp(0.0, 1.0);
+            self.audio
+                .main_track()
+                .set_volume(self.volume, Tween::default())
+                .expect("Can't set volume");
         }
 
         egui::Area::new("main_area")
@@ -107,7 +136,7 @@ impl eframe::App for Vibin {
             });
     }
 
-    /// Called by the frame work to save state before shutdown.
+    /// Called by the framework to save state before shutdown.
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
 
     fn clear_color(&self, _visuals: &Visuals) -> Rgba {
