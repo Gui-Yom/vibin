@@ -1,10 +1,8 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use std::{env, thread};
+use std::env;
+use std::time::{Duration, Instant};
 
 use eframe::epaint::Rgba;
-use egui::{ColorImage, Pos2, TextureHandle, Vec2, Visuals};
+use egui::{ColorImage, Pos2, TextureFilter, TextureHandle, Vec2, Visuals};
 use image::codecs::gif::GifDecoder;
 use image::AnimationDecoder;
 use kira::manager::backend::DefaultBackend;
@@ -18,7 +16,8 @@ static GIF_DATA: &[u8] = include_bytes!("../cat.gif");
 pub struct Vibin {
     pos: Pos2,
     images: Vec<(TextureHandle, u32)>,
-    current: Arc<AtomicUsize>,
+    current: usize,
+    last_change: Instant,
     audio: AudioManager,
     volume: f64,
 }
@@ -26,24 +25,6 @@ pub struct Vibin {
 impl Vibin {
     pub fn new(cc: &eframe::CreationContext<'_>, images: Vec<(TextureHandle, u32)>) -> Self {
         cc.egui_ctx.set_visuals(Visuals::dark());
-
-        let current = Arc::new(AtomicUsize::new(0));
-        let size = images.len();
-
-        // UI update thread
-        // Change the gif frame to display
-        let delay = images[0].1;
-        let ctx_clone = cc.egui_ctx.clone();
-        let curr_clone = current.clone();
-        thread::spawn(move || loop {
-            thread::sleep(Duration::from_micros(delay as u64));
-            curr_clone
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
-                    Some((c + 1) % size)
-                })
-                .unwrap();
-            ctx_clone.request_repaint();
-        });
 
         let mut manager = AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
             .expect("Can't initialize audio context");
@@ -74,7 +55,8 @@ impl Vibin {
         Self {
             pos: Pos2::new(100.0, 100.0),
             images,
-            current,
+            current: 0,
+            last_change: Instant::now(),
             audio: manager,
             volume: 1.0,
         }
@@ -86,7 +68,7 @@ impl eframe::App for Vibin {
         {
             let input = ctx.input();
             if input.pointer.middle_down() {
-                frame.quit();
+                frame.close();
             }
 
             if input.pointer.primary_down() {
@@ -126,13 +108,20 @@ impl eframe::App for Vibin {
                 .expect("Can't set volume");
         }
 
+        let delta =
+            self.images[self.current].1 as i32 - self.last_change.elapsed().as_micros() as i32;
+        if delta <= 0 {
+            self.current = (self.current + 1) % self.images.len();
+            self.last_change = Instant::now();
+            ctx.request_repaint();
+        } else {
+            ctx.request_repaint_after(Duration::from_micros(delta as u64));
+        }
+
         egui::Area::new("main_area")
             .fixed_pos(Pos2::ZERO)
             .show(ctx, |ui| {
-                ui.image(
-                    &self.images[self.current.load(Ordering::Relaxed)].0,
-                    Vec2::new(128.0, 128.0),
-                )
+                ui.image(&self.images[self.current].0, Vec2::new(128.0, 128.0))
             });
     }
 
@@ -177,6 +166,7 @@ fn main() {
                             [f.buffer().width() as _, f.buffer().height() as _],
                             f.buffer(),
                         ),
+                        TextureFilter::Linear,
                     );
                     let (num, den) = f.delay().numer_denom_ms();
                     (handle, (num as f32 * 1000.0 / den as f32).round() as u32)
