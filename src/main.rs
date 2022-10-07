@@ -9,7 +9,7 @@ use kira::manager::backend::DefaultBackend;
 use kira::manager::{AudioManager, AudioManagerSettings, MainPlaybackState};
 use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use kira::tween::{Easing, Tween};
-use kira::StartTime;
+use kira::{LoopBehavior, StartTime};
 
 pub struct Vibin {
     pos: Pos2,
@@ -27,7 +27,11 @@ impl Vibin {
         let mut manager = AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
             .expect("Can't initialize audio context");
 
-        let settings = StaticSoundSettings::new().volume(0.8);
+        let settings = StaticSoundSettings::new()
+            .volume(0.8)
+            .loop_behavior(LoopBehavior {
+                start_position: 0.0,
+            });
 
         #[cfg(feature = "bundle-audio")]
         let sound = {
