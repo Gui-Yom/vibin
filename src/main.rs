@@ -125,7 +125,7 @@ impl eframe::App for Vibin {
         egui::Area::new("main_area")
             .fixed_pos(Pos2::ZERO)
             .show(ctx, |ui| {
-                ui.image(&self.images[self.current].0, Vec2::new(128.0, 128.0))
+                ui.image(&self.images[self.current].0, Vec2::new(SIZE, SIZE))
             });
     }
 
@@ -143,6 +143,9 @@ static GIF_DATA: &[u8] = include_bytes!("../cat.gif");
 #[cfg(not(feature = "bundle-gif-cat"))]
 static GIF_DATA: &[u8] = include_bytes!(env!("VIBIN_GIF"));
 
+/// Display the image at a fixed size
+const SIZE: f32 = 128.0;
+
 fn main() {
     let decoder = GifDecoder::new(GIF_DATA).unwrap();
     let frames = decoder
@@ -150,15 +153,12 @@ fn main() {
         .collect_frames()
         .expect("Can't decode frames");
 
-    let width = frames[0].buffer().width();
-    let height = frames[0].buffer().height();
-
     eframe::run_native(
         "Vibin",
         eframe::NativeOptions {
             always_on_top: true,
             decorated: false,
-            initial_window_size: Some(Vec2::new(width as f32, height as f32)),
+            initial_window_size: Some(Vec2::new(SIZE, SIZE)),
             initial_window_pos: Some(Pos2::new(100.0, 100.0)),
             vsync: true,
             resizable: false,
