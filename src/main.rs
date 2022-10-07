@@ -11,8 +11,6 @@ use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use kira::tween::{Easing, Tween};
 use kira::StartTime;
 
-static GIF_DATA: &[u8] = include_bytes!("../cat.gif");
-
 pub struct Vibin {
     pos: Pos2,
     images: Vec<(TextureHandle, u32)>,
@@ -132,6 +130,12 @@ impl eframe::App for Vibin {
         Rgba::from_black_alpha(0.0)
     }
 }
+
+#[cfg(feature = "bundle-gif-cat")]
+static GIF_DATA: &[u8] = include_bytes!("../cat.gif");
+
+#[cfg(not(feature = "bundle-gif-cat"))]
+static GIF_DATA: &[u8] = include_bytes!(env!("VIBIN_GIF"));
 
 fn main() {
     let decoder = GifDecoder::new(GIF_DATA).unwrap();

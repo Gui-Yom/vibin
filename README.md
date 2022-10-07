@@ -21,6 +21,15 @@ cargo build --release --features bundle-audio
 target/release/vibin
 ```
 
+## Build & Run (with bundled audio and custom gif)
+
+```shell
+set VIBIN_GIF=<gif file>
+set VIBIN_BUNDLE=<mp3 or ogg file>
+cargo build --release --no-default-features --features bundle-audio
+target/release/vibin
+```
+
 ## Controls
 
 - The window is freely movable by dragging it.

@@ -9,10 +9,12 @@ edition = "2021"
 eframe = "0.19"
 egui = "0.19"
 image = { version = "0.24", default-features = false, features = ["gif"] }
-kira = { version = "0.7", default-features = false, features= ["cpal", "mp3", "ogg"] }
+kira = { version = "0.7", default-features = false, features = ["cpal", "mp3", "ogg"] }
 
 [features]
-default = []
+default = ["bundle-gif-cat"]
+# Bundle the cat gif
+bundle-gif-cat = []
 # Bundle an audio file at compile time
 bundle-audio = []
 
