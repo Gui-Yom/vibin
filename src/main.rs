@@ -1,10 +1,11 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::env;
+use std::io::Cursor;
 use std::time::{Duration, Instant};
+use std::{env, fs};
 
 use eframe::epaint::Rgba;
-use egui::{ColorImage, Pos2, TextureFilter, TextureHandle, Vec2, Visuals};
+use egui::{ColorImage, Pos2, TextureHandle, TextureOptions, Vec2, Visuals};
 use image::codecs::gif::GifDecoder;
 use image::AnimationDecoder;
 use kira::manager::backend::DefaultBackend;
@@ -12,6 +13,8 @@ use kira::manager::{AudioManager, AudioManagerSettings, MainPlaybackState};
 use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use kira::tween::{Easing, Tween};
 use kira::{LoopBehavior, StartTime};
+
+mod staticdata;
 
 pub struct Vibin {
     pos: Pos2,
@@ -35,26 +38,11 @@ impl Vibin {
                 start_position: 0.0,
             });
 
-        #[cfg(feature = "bundle-audio")]
-        let sound = {
-            let data = include_bytes!(env!(
-                "VIBIN_BUNDLE",
-                "Feature 'bundle-audio' is set but the VIBIN_BUNDLE env var is not"
-            ));
-            StaticSoundData::from_cursor(std::io::Cursor::new(data), settings)
-                .expect("Can't decode bundled sound file")
-        };
+        let audio =
+            StaticSoundData::from_cursor(Cursor::new(staticdata::get_audio_data()), settings)
+                .expect("Can't decode bundled sound file");
 
-        #[cfg(not(feature = "bundle-audio"))]
-        let sound = {
-            StaticSoundData::from_file(
-                env::args().skip(1).collect::<Vec<String>>().join(" "),
-                settings,
-            )
-            .expect("Can't load sound file")
-        };
-
-        manager.play(sound).expect("Can't play sound");
+        manager.play(audio).expect("Can't play sound");
 
         Self {
             pos: Pos2::new(100.0, 100.0),
@@ -137,17 +125,41 @@ impl eframe::App for Vibin {
     }
 }
 
-#[cfg(feature = "bundle-gif-cat")]
-static GIF_DATA: &[u8] = include_bytes!("../cat.gif");
-
-#[cfg(not(feature = "bundle-gif-cat"))]
-static GIF_DATA: &[u8] = include_bytes!(env!("VIBIN_GIF"));
-
 /// Display the image at a fixed size
 const SIZE: f32 = 128.0;
 
 fn main() {
-    let decoder = GifDecoder::new(GIF_DATA).unwrap();
+    let mut args = env::args();
+    if args.len() > 1 {
+        // Self modification time !
+        let exe = args.next().unwrap();
+
+        let mut new_gif = None;
+        let mut new_audio = None;
+
+        for file in args {
+            let content = fs::read(&file).unwrap();
+            if GifDecoder::new(&content[..]).is_ok() {
+                new_gif = Some((file, content));
+            } else {
+                let sound = StaticSoundData::from_cursor(
+                    Cursor::new(content.clone()),
+                    StaticSoundSettings::default(),
+                );
+                if sound.is_ok() {
+                    new_audio = Some((file, content));
+                } else {
+                    // Can't interpret that first file as a gif or an audio file
+                    panic!("Invalid file : {file}");
+                }
+            }
+        }
+
+        staticdata::rewrite_exe(&exe, new_gif, new_audio);
+        return;
+    }
+
+    let decoder = GifDecoder::new(staticdata::get_gif_data()).unwrap();
     let frames = decoder
         .into_frames()
         .collect_frames()
@@ -176,7 +188,7 @@ fn main() {
                             [f.buffer().width() as _, f.buffer().height() as _],
                             f.buffer(),
                         ),
-                        TextureFilter::Linear,
+                        TextureOptions::LINEAR,
                     );
                     let (num, den) = f.delay().numer_denom_ms();
                     (handle, (num as f32 * 1000.0 / den as f32).round() as u32)
