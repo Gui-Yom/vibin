@@ -2,15 +2,22 @@
 name = "vibin"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.64"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-eframe = "0.20"
-egui = "0.20"
+winit = "0.28"
+softbuffer = "0.2"
 image = { version = "0.24", default-features = false, features = ["gif"] }
 kira = { version = "0.7" }
-object = { version = "0.30", default-features = false, features = ["read_core", "pe", "write_std"] }
+mutself = { version = "0.1", path = "../mutself" }
+
+[target.'cfg(windows)'.dependencies]
+object = { version = "0.31", default-features = false, features = ["read_core", "write_std", "pe"] }
+
+[target.'cfg(unix)'.dependencies]
+object = { version = "0.31", default-features = false, features = ["read_core", "write_std", "elf"] }
 
 [features]
 default = ["bundle-gif-cat"]
