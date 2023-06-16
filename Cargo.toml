@@ -8,9 +8,9 @@ rust-version = "1.64"
 
 [dependencies]
 winit = "0.28"
-softbuffer = "0.2"
+softbuffer = "0.3"
 image = { version = "0.24", default-features = false, features = ["gif"] }
-kira = { version = "0.7" }
+kira = { version = "0.8" }
 mutself = { version = "0.1", path = "../mutself" }
 
 [target.'cfg(windows)'.dependencies]

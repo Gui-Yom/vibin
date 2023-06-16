@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::io::Cursor;
+use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
 use std::{env, fs, slice};
 
@@ -10,8 +11,7 @@ use kira::manager::backend::DefaultBackend;
 use kira::manager::{AudioManager, AudioManagerSettings, MainPlaybackState};
 use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use kira::tween::{Easing, Tween};
-use kira::{LoopBehavior, StartTime};
-use softbuffer::GraphicsContext;
+use kira::StartTime;
 use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{ElementState, Event, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::EventLoop;
@@ -46,7 +46,7 @@ fn main() {
             }
         }
 
-        staticdata::mutself(&exe, new_gif.as_deref(), new_audio.as_deref());
+        staticdata::mutself(&exe, new_gif.as_deref(), new_audio.as_deref()).unwrap();
         return;
     }
 
@@ -84,16 +84,13 @@ fn main() {
     }
 
     let window = builder.build(&event_loop).unwrap();
-    let mut gctx = unsafe { GraphicsContext::new(&window, &window).unwrap() };
+    let gctx = unsafe { softbuffer::Context::new(&window).unwrap() };
+    let mut surface = unsafe { softbuffer::Surface::new(&gctx, &window).unwrap() };
 
     let mut manager = AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
         .expect("Can't initialize audio context");
 
-    let settings = StaticSoundSettings::new()
-        .volume(0.8)
-        .loop_behavior(LoopBehavior {
-            start_position: 0.0,
-        });
+    let settings = StaticSoundSettings::new().volume(0.8).loop_region(..);
 
     let audio = StaticSoundData::from_cursor(Cursor::new(&*staticdata::AUDIO), settings)
         .expect("Can't decode bundled sound file");
@@ -176,14 +173,24 @@ fn main() {
                 _ => {}
             },
             Event::RedrawRequested(_) => {
+                let (width, height) = {
+                    let size = window.inner_size();
+                    (size.width, size.height)
+                };
+                surface
+                    .resize(
+                        NonZeroU32::new(width).unwrap(),
+                        NonZeroU32::new(height).unwrap(),
+                    )
+                    .unwrap();
+
                 // No way I'm making a copy on each redraw
                 let slice = frames[i].buffer().as_raw().as_slice();
                 let (ptr, len) = (slice.as_ptr(), slice.len());
-                gctx.set_buffer(
-                    unsafe { slice::from_raw_parts(ptr as *const u32, len / 4) },
-                    width as u16,
-                    height as u16,
-                );
+                let mut buffer = surface.buffer_mut().unwrap();
+                buffer
+                    .copy_from_slice(unsafe { slice::from_raw_parts(ptr as *const u32, len / 4) });
+                buffer.present().unwrap();
             }
             _ => {}
         }
