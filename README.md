@@ -47,23 +47,6 @@ cargo build --release
 target/release/vibin <mp3 or ogg file>
 ```
 
-## Build & Run (with bundled audio)
-
-```shell
-set VIBIN_BUNDLE=<mp3 or ogg file>
-cargo build --release --features bundle-audio
-target/release/vibin
-```
-
-## Build & Run (with bundled audio and custom gif)
-
-```shell
-set VIBIN_GIF=<gif file>
-set VIBIN_BUNDLE=<mp3 or ogg file>
-cargo build --release --no-default-features --features bundle-audio
-target/release/vibin
-```
-
 ---
 
 https://www.reddit.com/r/ProgrammerHumor/comments/jtnrlk/everyone_loves_pointers_right/

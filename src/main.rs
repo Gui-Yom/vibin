@@ -3,7 +3,7 @@
 use std::io::Cursor;
 use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
-use std::{env, fs, slice};
+use std::{env, fs, process, slice};
 
 use image::codecs::gif::GifDecoder;
 use image::{AnimationDecoder, ImageDecoder};
@@ -23,7 +23,7 @@ fn main() {
     let mut args = env::args();
     if args.len() > 1 {
         // Self modification time !
-        let exe = args.next().unwrap();
+        let exe = format!("{}_new.exe", args.next().unwrap());
 
         let mut new_gif = None;
         let mut new_audio = None;
@@ -47,6 +47,11 @@ fn main() {
         }
 
         staticdata::mutself(&exe, new_gif.as_deref(), new_audio.as_deref()).unwrap();
+        self_replace::self_replace(&exe).unwrap();
+        fs::remove_file(&exe).unwrap();
+        process::Command::new(env::current_exe().unwrap())
+            .spawn()
+            .unwrap();
         return;
     }
 

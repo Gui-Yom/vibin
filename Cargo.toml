@@ -1,17 +1,18 @@
 [package]
 name = "vibin"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.64"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winit = "0.28"
-softbuffer = "0.3"
 image = { version = "0.24", default-features = false, features = ["gif"] }
 kira = { version = "0.8" }
-mutself = { version = "0.1", path = "../mutself" }
+mutself = { version = "0.2", path = "../mutself" }
+self-replace = { version = "1", path = "../self-replace" }
+softbuffer = "0.3"
+winit = "0.28"
 
 [target.'cfg(windows)'.dependencies]
 object = { version = "0.31", default-features = false, features = ["read_core", "write_std", "pe"] }
@@ -19,15 +20,10 @@ object = { version = "0.31", default-features = false, features = ["read_core", 
 [target.'cfg(unix)'.dependencies]
 object = { version = "0.31", default-features = false, features = ["read_core", "write_std", "elf"] }
 
-[features]
-default = ["bundle-gif-cat"]
-# Bundle the cat gif
-bundle-gif-cat = []
-
 [profile.dev.package.'*']
 opt-level = 2
 
 [profile.release]
 opt-level = 3
-lto = "thin"
+lto = "off"
 codegen-units = 4
